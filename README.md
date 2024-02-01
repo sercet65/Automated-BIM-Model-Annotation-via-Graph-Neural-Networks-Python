@@ -23,7 +23,7 @@ You can install the necessary Python packages using pip:
 ```bash
 pip install neo4j pandas numpy networkx
 
-#Configuration
+## Configuration
 Before running the script, make sure to configure the following:
 
 Neo4j URI, user, and password in the write_to_neo4j function.
