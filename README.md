@@ -18,10 +18,6 @@ Before running the scripts, ensure you have the following dependencies installed
 - Pandas
 - Numpy
 
-You can install the necessary Python packages using pip:
-
-```bash
-pip install neo4j pandas numpy networkx
 
 ## Configuration
 Before running the script, make sure to configure the following:
@@ -29,3 +25,11 @@ Before running the script, make sure to configure the following:
 Neo4j URI, user, and password in the write_to_neo4j function.
 The path to your text file in the generate_graph_from_text_file function call.
 The CSV file paths in the main section of the script.
+
+
+You can install the necessary Python packages using pip:
+
+```bash
+pip install neo4j pandas numpy networkx
+
+
