@@ -1,0 +1,17 @@
+Element Type: Wall, GUID: 3A166D5F-444B-4FFE-9C42-9E4433C7ED62, Embedded Doors: [3C1ADF00-99DB-48EB-B5FC-A075685A71B1], Info String: WALL-001, Wall Bounding Box: [(0.00, 0.00, 0.00), (5.00, 0.34, 3.00)], Label Type: 2
+Element Type: Wall, GUID: 26D78958-F733-42A0-9437-6A2E3AFDDDBB, Info String: WALL-002, Wall Bounding Box: [(4.66, 0.00, 0.00), (5.00, 5.00, 3.00)], Label Type: 0
+Element Type: Wall, GUID: A3831D8D-2072-464A-907B-4FF183A3BEBD, Info String: WALL-003, Wall Bounding Box: [(0.00, 4.66, 0.00), (5.00, 5.00, 3.00)], Label Type: 0
+Element Type: Wall, GUID: 05526A12-85D5-41ED-9A07-FD2FA2B2489E, Info String: WALL-004, Wall Bounding Box: [(0.00, 0.00, 0.00), (0.34, 5.00, 3.00)], Label Type: 0
+Element Type: Slab, GUID: E05FCCC9-D4F7-429C-82E8-157268CB44D6, Info String: SLAB-001, Slab Bounding Box: [(0.34, 0.34, -0.05), (4.66, 4.66, 0.00)], Label Type: 0
+Element Type: Zone, GUID: E21B4B3D-D3B6-4189-9DB9-FF2BC8EF4F45, Zone Stamp GUID: 9242F349-3501-4A25-BE75-4657E5AA5E3B, Position: (2.54, 2.07), Room Name: Room 1, Room Number: 01-001, Room Height: 2.69, Zone Stamp Bounding Box: [(1.91, 1.70, 0.00), (3.17, 2.44, 0.00)], Info String: SPCE-001, Zone Bounding Box: [(0.34, 0.34, 0.00), (4.66, 4.66, 2.69)], Label Type: 3
+Element Type: Door, GUID: 3C1ADF00-99DB-48EB-B5FC-A075685A71B1, Marker GUID: 00000000-0000-0000-0000-000000000000, Label GUID: 94ED8866-3A47-4C3E-B463-3BC8E66356C2, Bounding Box DL: [(0.70, -0.49, 0.00), (2.91, 0.51, 0.00)], Label GUID: 392FEA53-C27B-4718-B3AC-E27D1FCA0669, Bounding Box DL: [(-0.56, -0.34, 0.00), (1.24, -0.09, 0.00)], Embedded in Wall GUID: 3A166D5F-444B-4FFE-9C42-9E4433C7ED62, Info String: D-001, Door Bounding Box: [(0.40, -0.02, 0.00), (1.38, 1.08, 2.10)], Label Type: 2
+Element Type: Dimension [0], GUID: 3FE05E78-CFCD-4703-9E90-E86F8ED02076, Associated Element GUID: 05526A12-85D5-41ED-9A07-FD2FA2B2489E, Text: 0, Length: 0.00 mm, Position: (0.00, 1.31)
+Element Type: Dimension [1], GUID: 3FE05E78-CFCD-4703-9E90-E86F8ED02076, Associated Element GUID: 05526A12-85D5-41ED-9A07-FD2FA2B2489E, Text: 336, Length: 0.34 mm, Position: (0.34, 1.31)
+Element Type: Dimension [2], GUID: 3FE05E78-CFCD-4703-9E90-E86F8ED02076, Associated Element GUID: 26D78958-F733-42A0-9437-6A2E3AFDDDBB, Text: 4,328, Length: 4.33 mm, Position: (4.66, 1.31)
+Element Type: Dimension [3], GUID: 3FE05E78-CFCD-4703-9E90-E86F8ED02076, Associated Element GUID: 26D78958-F733-42A0-9437-6A2E3AFDDDBB, Text: 336, Length: 0.34 mm, Position: (5.00, 1.31)
+Element Type: Dimension, GUID: 3FE05E78-CFCD-4703-9E90-E86F8ED02076, Bounding Box: [(-0.05, 1.22, 0.00), (5.05, 1.41, 0.00)], Total Length :  5.00 mm
+Element Type: Dimension [0], GUID: 053D03C4-B54B-424F-B1F3-C157E92A5358, Associated Element GUID: 3A166D5F-444B-4FFE-9C42-9E4433C7ED62, Text: 0, Length: 0.00 mm, Position: (3.90, 0.00)
+Element Type: Dimension [1], GUID: 053D03C4-B54B-424F-B1F3-C157E92A5358, Associated Element GUID: 3A166D5F-444B-4FFE-9C42-9E4433C7ED62, Text: 336, Length: 0.34 mm, Position: (3.90, 0.34)
+Element Type: Dimension [2], GUID: 053D03C4-B54B-424F-B1F3-C157E92A5358, Associated Element GUID: A3831D8D-2072-464A-907B-4FF183A3BEBD, Text: 4,328, Length: 4.33 mm, Position: (3.90, 4.66)
+Element Type: Dimension [3], GUID: 053D03C4-B54B-424F-B1F3-C157E92A5358, Associated Element GUID: A3831D8D-2072-464A-907B-4FF183A3BEBD, Text: 336, Length: 0.34 mm, Position: (3.90, 5.00)
+Element Type: Dimension, GUID: 053D03C4-B54B-424F-B1F3-C157E92A5358, Bounding Box: [(3.80, -0.05, 0.00), (3.99, 5.05, 0.00)], Total Length :  5.00 mm
