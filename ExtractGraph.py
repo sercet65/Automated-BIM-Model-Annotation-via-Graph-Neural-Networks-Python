@@ -17,6 +17,17 @@ def extract_coordinates(coord_str):
         coords = []
     return coords
 
+def extract_position(pos_str):
+    # This pattern matches coordinates in the format (x, y)
+    pattern = r'\(\s*(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)\s*\)'
+    matches = re.search(pattern, pos_str)
+    if matches:
+        x, y = matches.groups()
+        return float(x), float(y)
+    else:
+        # If the pattern is not found, return None values
+        return None, None
+    
 def generate_graph_from_text_file(file_path):
     nodes_data = []
     node_id = 0  # Initialize a counter for node IDs
@@ -26,83 +37,107 @@ def generate_graph_from_text_file(file_path):
             elements = re.split(r', (?=[A-Z])', line.strip())
             node_data = {"node_id": node_id}  # Add node ID as the first element in node_data
 
+            # Initialize consolidated bounding box keys with default values
+            consolidated_bbox = {'bb_xmin': 0.0, 'bb_ymin': 0.0, 'bb_zmin': 0.0, 
+                                 'bb_xmax': 0.0, 'bb_ymax': 0.0, 'bb_zmax': 0.0}
+
             for element in elements:
                 key_value = element.split(': ', 1)
-
+                
                 if len(key_value) == 2:
                     key, value = key_value
                     key_formatted = key.lower().replace(' ', '_')
 
+                    # Check if the key is for a bounding box of interest
                     if 'bounding_box' in key_formatted:
                         coords = extract_coordinates(value)
-                        if coords:
-                            bbox_keys = ['xmin', 'ymin', 'zmin', 'xmax', 'ymax', 'zmax']
-                            node_data.update({f'{key_formatted}_{k}': v for k, v in zip(bbox_keys, coords)})
+                        # Update the consolidated bounding box keys
+                        consolidated_bbox.update({'bb_xmin': coords[0], 'bb_ymin': coords[1], 'bb_zmin': coords[2],
+                                                  'bb_xmax': coords[3], 'bb_ymax': coords[4], 'bb_zmax': coords[5]})
+                    elif key == "Label Type":
+                        node_data['label_type'] = int(value)
+                    elif key == "Embedded Doors":
+                        node_data['embedded_doors'] = value.strip('[]').split(', ') if value.startswith('[') else []
+
+                    elif 'position' in key_formatted:
+                         pos_x, pos_y = extract_position(value)
+                         if pos_x is not None and pos_y is not None:
+                            node_data['pos_x'] = pos_x
+                            node_data['pos_y'] = pos_y
+    
                     else:
-                        if key == "Label Type" or key == "Embedded Doors":
-                            if value.startswith('['):  # It's a list
-                                value = value.strip('[]').split(', ')
-                            else:
-                                value = int(value)
                         node_data[key_formatted] = value
 
-            if node_data:
+            # Merge the consolidated bounding box information with the rest of the node data
+            node_data.update(consolidated_bbox)
+
+            if node_data:  # Check if any data was extracted before adding it to the list
                 nodes_data.append(node_data)
                 node_id += 1  # Increment node ID for the next node
 
-
-
     return nodes_data
 
-def generate_edges_data(nodes_data):
-    # Prepare formatted_shapes for get_adjacencies
+import numpy as np
+
+def generate_edges_data(nodes_data, distance_tolerance=0.1):
+  
+    # Prepare formatted_shapes for spatial adjacency calculation, ensuring correct bounding box handling.
     formatted_shapes = {}
     for node in nodes_data:
-        base_key = f"{node['element_type'].lower()}_bounding_box_"
-        formatted_shapes[node['guid']] = np.array([
-            node.get(base_key + 'xmin', 0),
-            node.get(base_key + 'ymin', 0),
-            node.get(base_key + 'zmin', 0),
-            node.get(base_key + 'xmax', 0),
-            node.get(base_key + 'ymax', 0),
-            node.get(base_key + 'zmax', 0)])
+        bbox = np.array([
+            node.get('bb_xmin', 0),
+            node.get('bb_ymin', 0),
+            node.get('bb_zmin', 0),
+            node.get('bb_xmax', 0),
+            node.get('bb_ymax', 0),
+            node.get('bb_zmax', 0)
+        ])
+        # Ensure the bounding box is correctly formatted and represented.
+        formatted_shapes[node['guid']] = bbox
     
-    # Get adjacencies with a specified distance tolerance
-    distance_tolerance = 0.1
+    # Determine adjacency between nodes using the specified distance tolerance.
     adjacencies, distances, _ = get_adjacencies(formatted_shapes, distance_tolerance)
-
-    # Map node names to node IDs
-    node_name_to_id = {node['guid']: node['node_id'] for node in nodes_data}
-
-    # Create edges_data based on adjacencies
+    
+    # Map GUIDs to node IDs for creating edges.
+    guid_to_node_id = {node['guid']: node['node_id'] for node in nodes_data}
+    
+    # Generate edge data with improved bounding box consideration.
     edges_data = {
-        "edge_id": [i for i in range(len(adjacencies))],
-        "node1_id": [node_name_to_id[node_pair[0]] for node_pair in adjacencies],
-        "node2_id": [node_name_to_id[node_pair[1]] for node_pair in adjacencies],
-        "distance": distances
+        "edge_id": [],
+        "node1_id": [],
+        "node2_id": [],
+        "distance": []
     }
+    
+    for idx, (guid1, guid2) in enumerate(adjacencies):
+        node1_id = guid_to_node_id[guid1]
+        node2_id = guid_to_node_id[guid2]
+        edge_distance = distances[idx]
+        
+        edges_data["edge_id"].append(idx)
+        edges_data["node1_id"].append(node1_id)
+        edges_data["node2_id"].append(node2_id)
+        edges_data["distance"].append(edge_distance)
+
+ # Add logic to handle dimension nodes
+    for node in nodes_data:
+        if node['element_type'].startswith('Dimension'):
+            # Assuming dimensions have an attribute 'associated_element_guid'
+            associated_element_guid = node.get('associated_element_guid')
+            if associated_element_guid:
+                # Find the associated element's node_id
+                if associated_element_guid in guid_to_node_id:
+                    associated_node_id = guid_to_node_id[associated_element_guid]
+                    # Create an edge between the dimension node and its associated element
+                    edges_data["edge_id"].append(len(edges_data["edge_id"]))  # Unique edge ID
+                    edges_data["node1_id"].append(node['node_id'])
+                    edges_data["node2_id"].append(associated_node_id)
+                    edges_data["distance"].append(0)  # Distance might be zero or calculated differently for dimensionsy
+
+    
     return edges_data
 
-# Call the modified function with the path to your text file
-nodes_data = generate_graph_from_text_file(r'C:\Users\serve\OneDrive\Desktop\Phythin\Elementinfo.txt')
-edges_data = generate_edges_data(nodes_data)
-
-# Convert nodes_data list to a DataFrame
-nodes_df = pd.DataFrame(nodes_data)
-edges_df = pd.DataFrame(edges_data)
-
-# Specify the CSV file path where you want to save the data
-nodes_csv_file_path = r'C:\Users\serve\OneDrive\Desktop\Phythin\nodes_data.csv'
-edges_csv_file_path = r'C:\Users\serve\OneDrive\Desktop\Phythin\edges_data.csv'
-
-# Save the DataFrame to a CSV file
-nodes_df.to_csv(nodes_csv_file_path, index=False)
-edges_df.to_csv(edges_csv_file_path, index=False)
-
-# Print the list of dictionaries (each dictionary represents a node)
-for node in nodes_data:
-    print(node)
-
+ 
 def save_graph_to_graphml(nodes_df, edges_df, output_graphml):
     G = nx.Graph()
 
@@ -121,64 +156,114 @@ def save_graph_to_graphml(nodes_df, edges_df, output_graphml):
     nx.write_graphml(G, output_graphml)
     print(f"Graph saved to {output_graphml}")
 
-# Specify the path for the output GraphML file
-output_graphml_path = r'C:\Users\serve\OneDrive\Desktop\Phythin\output_graph.graphml'
+def clean_database(driver, database="neo4j3"):
+    with driver.session(database=database) as session:
+        session.run("MATCH (n) DETACH DELETE n")
 
-# Call the function to save the graph
-save_graph_to_graphml(nodes_df, edges_df, output_graphml_path)  # Ensure this line is executed
-
-def write_to_neo4j(node_csv="nodes_data.csv", edge_csv="edges_data.csv"):
+def write_to_neo4j(node_csv="nodes_data.csv", edge_csv="edges_data.csv", database="neo4j3"):
     uri = "neo4j://localhost:7687"
     driver = GraphDatabase.driver(uri, auth=("neo4j", "password"))
 
     if os.path.exists(node_csv) and os.path.exists(edge_csv):
-        nodes_df = pd.read_csv(node_csv)
+        elements_df = pd.read_csv(node_csv)
         edges_df = pd.read_csv(edge_csv)
 
         # Convert dataframes to list of dictionaries
-        nodes_dict_list = nodes_df.to_dict('records')
+        nodes_dict_list = elements_df.to_dict('records')
         edges_dict_list = edges_df.to_dict('records')
 
-        def add_data_to_neo4j(tx):
+        def add_data_to_neo4j(tx, nodes, edges):
             # Add nodes to Neo4j
-            tx.run("""
-            MERGE (n:Node {node_id: $node_id})
-            SET n.element_type = $element_type,
-                n.guid = $guid,
-                n.wall_bounding_box_xmin = $wall_bounding_box_xmin,
-                n.wall_bounding_box_ymin = $wall_bounding_box_ymin,
-                n.wall_bounding_box_zmin = $wall_bounding_box_zmin,
-                n.wall_bounding_box_xmax = $wall_bounding_box_xmax,
-                n.wall_bounding_box_ymax = $wall_bounding_box_ymax,
-                n.wall_bounding_box_zmax = $wall_bounding_box_zmax,
-                n.door_bounding_box_xmin = $door_bounding_box_xmin,
-                n.door_bounding_box_ymin = $door_bounding_box_ymin,
-                n.door_bounding_box_zmin = $door_bounding_box_zmin,
-                n.door_bounding_box_xmax = $door_bounding_box_xmax,
-                n.door_bounding_box_ymax = $door_bounding_box_ymax,
-                n.door_bounding_box_zmax = $door_bounding_box_zmax,
-                n.zone_bounding_box_xmin = $zone_bounding_box_xmin,
-                n.zone_bounding_box_ymin = $zone_bounding_box_ymin,
-                n.zone_bounding_box_zmin = $zone_bounding_box_zmin,
-                n.zone_bounding_box_xmax = $zone_bounding_box_xmax,
-                n.zone_bounding_box_ymax = $zone_bounding_box_ymax,
-                n.zone_bounding_box_zmax = $zone_bounding_box_zmax
-                -- Include other attributes as needed
-        """, node)
+            for node in nodes:
+                tx.run("""
+                MERGE (n:Node {node_id: $node_id})
+                SET n.element_type = $element_type,
+                    n.guid = $guid,
+                    n.info_string = $info_string,
+                    n.bb_xmin = $bb_xmin,
+                    n.bb_ymin = $bb_ymin,
+                    n.bb_zmin = $bb_zmin,
+                    n.bb_xmax = $bb_xmax,
+                    n.bb_ymax = $bb_ymax,
+                    n.bb_zmax = $bb_zmax,
+                    n.pos_x = $pos_x,
+                    n.pos_y = $pos_y,
+                    n.label_type = $label_type
+                """, parameters=node)
             
             # Add edges to Neo4j
             tx.run("""
-                UNWIND $edges as edge
+                UNWIND $edges AS edge
                 MATCH (a:Node {node_id: edge.node1_id}), (b:Node {node_id: edge.node2_id})
-                MERGE (a)-[r:CONNECTS_TO {edge_id: edge.edge_id, distance: edge.distance}]->(b)
-            """, edges=edges_dict_list)
+                MERGE (a)-[r:CONNECTS_TO]->(b)
+                ON CREATE SET r.edge_id = edge.edge_id, r.distance = edge.distance
+                ON MATCH SET r.distance = edge.distance
+            """, parameters={'edges': edges_dict_list})
 
         # Execute the function to add data to Neo4j
-        with driver.session() as session:
-            session.write_transaction(add_data_to_neo4j)
+        with driver.session(database="neo4j3") as session:
+            session.write_transaction(add_data_to_neo4j, nodes_dict_list, edges_dict_list)
 
         # Close the driver connection
         driver.close()
 
+def main():
+
+    uri = "neo4j://localhost:7687"
+    auth = ("neo4j", "password")  # Replace with your actual credentials
+    database_name = "neo4j3"  # Specify your target database name
+
+    driver = GraphDatabase.driver(uri, auth=auth)
+
+    # Confirmation prompt to prevent accidental data loss
+    confirm = input("This will delete all data in the database '{}'. Are you sure? (yes/no): ".format(database_name))
+    if confirm.lower() == 'yes':
+        clean_database(driver, database=database_name)
+        print("Database has been cleaned.")
+    else:
+        print("Operation cancelled.")
+        driver.close()
+        return
+
+    # Paths to your files
+    text_file_path = r'C:\Users\serve\OneDrive\Desktop\Phython\Elementinfo.txt'
+    elements_csv_file_path = r'C:\Users\serve\OneDrive\Desktop\Phython\elements_data.csv'
+    annotations_csv_file_path = r'C:\Users\serve\OneDrive\Desktop\Phython\annotations_data.csv'
+    nodes_csv_file_path = r'C:\Users\serve\OneDrive\Desktop\Phython\nodes_data.csv'
+    edges_csv_file_path = r'C:\Users\serve\OneDrive\Desktop\Phython\edges_data.csv'
+    output_graphml_path = r'C:\Users\serve\OneDrive\Desktop\Phython\output_graph.graphml'
+
+    # Generate nodes and edges data
+    nodes_data = generate_graph_from_text_file(text_file_path)
+    edges_data = generate_edges_data(nodes_data)
+
+    # Filter nodes_data into two separate lists: one for elements and one for annotations
+    elements_data = [node for node in nodes_data if node['element_type'] in ['Wall', 'Door', 'Zone', 'Slab']]
+    annotations_data = [node for node in nodes_data if node['element_type'] not in ['Wall', 'Door', 'Zone', 'Slab']]
+
+    # Convert to data frames
+    elements_df = pd.DataFrame(elements_data)
+    annotations_df = pd.DataFrame(annotations_data)
+    edges_df = pd.DataFrame(edges_data)
+    nodes_df = pd.DataFrame(nodes_data)
+
+    # Save to CSV files
+    elements_df.to_csv(elements_csv_file_path, index=False ) # add this if you see merged items in csv file sep=';'
+    annotations_df.to_csv(annotations_csv_file_path, index=False) # add this if you see merged items in csv file sep=';'
+    edges_df.to_csv(edges_csv_file_path, index=False) # add this if you see merged items in csv file sep=';'
+    nodes_df.to_csv(nodes_csv_file_path, index=False) # add this if you see merged items in csv file sep=';'
+
+
+    # Save to GraphML
+    save_graph_to_graphml(pd.concat([elements_df, annotations_df]), edges_df, output_graphml_path)
+
+    # Optional: Print data for verification
+    #print("Elements:")
+    #print(elements_df.head())
+    #print("\nAnnotations:")
+    #print(annotations_df.head())
+
+    write_to_neo4j(node_csv="nodes_data.csv", edge_csv="edges_data.csv", database="neo4j3")
+
 if __name__ == "__main__":
-	write_to_neo4j(node_csv="nodes_data.csv", edge_csv="edges_data.csv")
+    main()
