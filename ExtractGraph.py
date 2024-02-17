@@ -79,8 +79,8 @@ def generate_graph_from_text_file(file_path):
 
 import numpy as np
 
+
 def generate_edges_data(nodes_data, distance_tolerance=0.1):
-  
     # Prepare formatted_shapes for spatial adjacency calculation, ensuring correct bounding box handling.
     formatted_shapes = {}
     for node in nodes_data:
@@ -93,48 +93,43 @@ def generate_edges_data(nodes_data, distance_tolerance=0.1):
             node.get('bb_zmax', 0)
         ])
         # Ensure the bounding box is correctly formatted and represented.
-        formatted_shapes[node['guid']] = bbox
-    
+        formatted_shapes[node['node_id']] = bbox
+
     # Determine adjacency between nodes using the specified distance tolerance.
     adjacencies, distances, _ = get_adjacencies(formatted_shapes, distance_tolerance)
-    
-    # Map GUIDs to node IDs for creating edges.
-    guid_to_node_id = {node['guid']: node['node_id'] for node in nodes_data}
-    
-    # Generate edge data with improved bounding box consideration.
+
+    # Map node IDs to bounding box coordinates for easy access
+    node_id_to_bbox = {node['node_id']: formatted_shapes[node['node_id']] for node in nodes_data}
+
+    # Initialize the edges data dictionary
     edges_data = {
         "edge_id": [],
         "node1_id": [],
         "node2_id": [],
         "distance": []
     }
-    
-    for idx, (guid1, guid2) in enumerate(adjacencies):
-        node1_id = guid_to_node_id[guid1]
-        node2_id = guid_to_node_id[guid2]
-        edge_distance = distances[idx]
+
+    # Generate edges from adjacency information
+    for (node_id1, node_id2), distance in zip(adjacencies, distances):
+
+          # Check if either of the nodes is of type "Dim Text" and if the text field has a value of 0
+        is_dim_text_0 = (
+            (nodes_data[node_id1]['element_type'] == 'DimText' and 
+             str(nodes_data[node_id1].get('text', '')) == '0') or
+            (nodes_data[node_id2]['element_type'] == 'DimText' and 
+             str(nodes_data[node_id2].get('text', '')) == '0')
+        )
         
-        edges_data["edge_id"].append(idx)
-        edges_data["node1_id"].append(node1_id)
-        edges_data["node2_id"].append(node2_id)
-        edges_data["distance"].append(edge_distance)
+        if is_dim_text_0:
+            continue  # Skip creating edge for this pair of nodes
 
- # Add logic to handle dimension nodes
-    for node in nodes_data:
-        if node['element_type'].startswith('Dimension'):
-            # Assuming dimensions have an attribute 'associated_element_guid'
-            associated_element_guid = node.get('associated_element_guid')
-            if associated_element_guid:
-                # Find the associated element's node_id
-                if associated_element_guid in guid_to_node_id:
-                    associated_node_id = guid_to_node_id[associated_element_guid]
-                    # Create an edge between the dimension node and its associated element
-                    edges_data["edge_id"].append(len(edges_data["edge_id"]))  # Unique edge ID
-                    edges_data["node1_id"].append(node['node_id'])
-                    edges_data["node2_id"].append(associated_node_id)
-                    edges_data["distance"].append(0)  # Distance might be zero or calculated differently for dimensionsy
 
-    
+        # Add an edge between node1 and node2 if their distance is within tolerance
+        edges_data["edge_id"].append(len(edges_data["edge_id"]) + 1)  # Unique edge ID
+        edges_data["node1_id"].append(node_id1)
+        edges_data["node2_id"].append(node_id2)
+        edges_data["distance"].append(distance)
+
     return edges_data
 
  
@@ -156,11 +151,11 @@ def save_graph_to_graphml(nodes_df, edges_df, output_graphml):
     nx.write_graphml(G, output_graphml)
     print(f"Graph saved to {output_graphml}")
 
-def clean_database(driver, database="neo4j3"):
+def clean_database(driver, database="neo4j4"):
     with driver.session(database=database) as session:
         session.run("MATCH (n) DETACH DELETE n")
 
-def write_to_neo4j(node_csv="nodes_data.csv", edge_csv="edges_data.csv", database="neo4j3"):
+def write_to_neo4j(node_csv="nodes_data.csv", edge_csv="edges_data.csv", database="neo4j4"):
     uri = "neo4j://localhost:7687"
     driver = GraphDatabase.driver(uri, auth=("neo4j", "password"))
 
@@ -201,7 +196,7 @@ def write_to_neo4j(node_csv="nodes_data.csv", edge_csv="edges_data.csv", databas
             """, parameters={'edges': edges_dict_list})
 
         # Execute the function to add data to Neo4j
-        with driver.session(database="neo4j3") as session:
+        with driver.session(database="neo4j4") as session:
             session.write_transaction(add_data_to_neo4j, nodes_dict_list, edges_dict_list)
 
         # Close the driver connection
@@ -211,7 +206,7 @@ def main():
 
     uri = "neo4j://localhost:7687"
     auth = ("neo4j", "password")  # Replace with your actual credentials
-    database_name = "neo4j3"  # Specify your target database name
+    database_name = "neo4j4"  # Specify your target database name
 
     driver = GraphDatabase.driver(uri, auth=auth)
 
@@ -263,7 +258,7 @@ def main():
     #print("\nAnnotations:")
     #print(annotations_df.head())
 
-    write_to_neo4j(node_csv="nodes_data.csv", edge_csv="edges_data.csv", database="neo4j3")
+    write_to_neo4j(node_csv="nodes_data.csv", edge_csv="edges_data.csv", database="neo4j4")
 
 if __name__ == "__main__":
     main()
