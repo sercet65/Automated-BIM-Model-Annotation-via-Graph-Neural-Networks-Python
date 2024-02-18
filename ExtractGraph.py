@@ -40,7 +40,7 @@ def generate_graph_from_text_file(file_path):
             # Initialize consolidated bounding box keys with default values
             consolidated_bbox = {'bb_xmin': 0.0, 'bb_ymin': 0.0, 'bb_zmin': 0.0, 
                                  'bb_xmax': 0.0, 'bb_ymax': 0.0, 'bb_zmax': 0.0}
-
+            skip_node = False  # Flag to indicate if the node should be skipped
             for element in elements:
                 key_value = element.split(': ', 1)
                 
@@ -65,25 +65,34 @@ def generate_graph_from_text_file(file_path):
                             node_data['pos_x'] = pos_x
                             node_data['pos_y'] = pos_y
     
+
                     else:
                         node_data[key_formatted] = value
 
+                # Specific condition to check for DimText nodes with text value of 0 and mark them for skipping
+                if key_formatted == 'element_type' and 'dimtext' in value.lower():
+                    text_value = next((el.split(': ', 1)[1] for el in elements if 'Text: ' in el), None)
+                    if text_value and text_value.strip() == '0':
+                        skip_node = True
+                        break  # Exit the loop early since we're skipping this node
+        
             # Merge the consolidated bounding box information with the rest of the node data
             node_data.update(consolidated_bbox)
 
-            if node_data:  # Check if any data was extracted before adding it to the list
+            if not skip_node and node_data:  # Check if any data was extracted and node is not marked to be skipped
                 nodes_data.append(node_data)
                 node_id += 1  # Increment node ID for the next node
 
     return nodes_data
 
-import numpy as np
-
 
 def generate_edges_data(nodes_data, distance_tolerance=0.1):
-    # Prepare formatted_shapes for spatial adjacency calculation, ensuring correct bounding box handling.
+
+     
+
     formatted_shapes = {}
-    for node in nodes_data:
+    for node in nodes_data:  # This should iterate over a list of dictionaries
+        # Double-check this line to ensure 'node' is indeed a dictionary
         bbox = np.array([
             node.get('bb_xmin', 0),
             node.get('bb_ymin', 0),
@@ -92,14 +101,16 @@ def generate_edges_data(nodes_data, distance_tolerance=0.1):
             node.get('bb_ymax', 0),
             node.get('bb_zmax', 0)
         ])
-        # Ensure the bounding box is correctly formatted and represented.
         formatted_shapes[node['node_id']] = bbox
+        
+
 
     # Determine adjacency between nodes using the specified distance tolerance.
     adjacencies, distances, _ = get_adjacencies(formatted_shapes, distance_tolerance)
 
     # Map node IDs to bounding box coordinates for easy access
     node_id_to_bbox = {node['node_id']: formatted_shapes[node['node_id']] for node in nodes_data}
+
 
     # Initialize the edges data dictionary
     edges_data = {
@@ -112,23 +123,13 @@ def generate_edges_data(nodes_data, distance_tolerance=0.1):
     # Generate edges from adjacency information
     for (node_id1, node_id2), distance in zip(adjacencies, distances):
 
-          # Check if either of the nodes is of type "Dim Text" and if the text field has a value of 0
-        is_dim_text_0 = (
-            (nodes_data[node_id1]['element_type'] == 'DimText' and 
-             str(nodes_data[node_id1].get('text', '')) == '0') or
-            (nodes_data[node_id2]['element_type'] == 'DimText' and 
-             str(nodes_data[node_id2].get('text', '')) == '0')
-        )
-        
-        if is_dim_text_0:
-            continue  # Skip creating edge for this pair of nodes
-
+          
 
         # Add an edge between node1 and node2 if their distance is within tolerance
-        edges_data["edge_id"].append(len(edges_data["edge_id"]) + 1)  # Unique edge ID
-        edges_data["node1_id"].append(node_id1)
-        edges_data["node2_id"].append(node_id2)
-        edges_data["distance"].append(distance)
+            edges_data["edge_id"].append(len(edges_data["edge_id"]) + 1)  # Unique edge ID
+            edges_data["node1_id"].append(node_id1)
+            edges_data["node2_id"].append(node_id2)
+            edges_data["distance"].append(distance)
 
     return edges_data
 
@@ -162,7 +163,7 @@ def write_to_neo4j(node_csv="nodes_data.csv", edge_csv="edges_data.csv", databas
     if os.path.exists(node_csv) and os.path.exists(edge_csv):
         elements_df = pd.read_csv(node_csv)
         edges_df = pd.read_csv(edge_csv)
-
+            
         # Convert dataframes to list of dictionaries
         nodes_dict_list = elements_df.to_dict('records')
         edges_dict_list = edges_df.to_dict('records')
@@ -185,7 +186,7 @@ def write_to_neo4j(node_csv="nodes_data.csv", edge_csv="edges_data.csv", databas
                     n.pos_y = $pos_y,
                     n.label_type = $label_type
                 """, parameters=node)
-            
+                    
             # Add edges to Neo4j
             tx.run("""
                 UNWIND $edges AS edge
@@ -198,7 +199,9 @@ def write_to_neo4j(node_csv="nodes_data.csv", edge_csv="edges_data.csv", databas
         # Execute the function to add data to Neo4j
         with driver.session(database="neo4j4") as session:
             session.write_transaction(add_data_to_neo4j, nodes_dict_list, edges_dict_list)
-
+        # New: Fetch and print a specified number of nodes
+            limit = 100  # Specify the limit here
+            result = session.run(f"MATCH (n) RETURN n LIMIT {limit}")
         # Close the driver connection
         driver.close()
 
